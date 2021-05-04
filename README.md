@@ -197,7 +197,7 @@ When data is not available, often from lack of collection for that category, a -
   <tr>
    <td>Colorado
    </td>
-   <td>-
+   <td>Count Variation: some update irregularly
    </td>
    <td>-
    </td>
@@ -229,9 +229,10 @@ When data is not available, often from lack of collection for that category, a -
    </td>
    <td>-
    </td>
-   <td>-
+   <td>No
    </td>
-   <td>-
+   <td>Automated<br>
+     Does not report American Indian, Native Hawaiian, 2+ races
    </td>
   </tr>
   <tr>
@@ -251,9 +252,9 @@ When data is not available, often from lack of collection for that category, a -
    </td>
    <td>Yes (about 10 days)
    </td>
-   <td>Race: no multiracial
-<p>
-Ethnicity: only Hispanic
+   <td>Automated <br>
+     Race: no multiracial <br>
+     Ethnicity: only Hispanic
    </td>
   </tr>
   <tr>
@@ -365,7 +366,7 @@ Ethnicity: no data
    </td>
    <td>No
    </td>
-   <td>-
+   <td>Does not report Native Hawaiian or 2+ races
    </td>
   </tr>
   <tr>
@@ -423,11 +424,12 @@ Ethnicity: no data
   <tr>
    <td>Tennessee
    </td>
-   <td>County Variation: some update weekly, irregularly, or not at all
+   <td>County Variation: some update on a weekly basis
    </td>
    <td>No
    </td>
-   <td>-
+   <td>
+Updates Per 100,000; American Indian and Alaskan Combined, Other and Multiracial are Combined 
    </td>
   </tr>
   <tr>
@@ -447,7 +449,7 @@ Ethnicity: no data
    </td>
    <td>Yes
    </td>
-   <td>Automated
+   <td>Automated;  Reports by health district but is converted into county level (see methods below)
    </td>
   </tr>
   <tr>
@@ -477,7 +479,8 @@ Ethnicity: no data
    </td>
    <td>-
    </td>
-   <td>-
+   <td>
+Automated; Does not report native Hawaiian/Pacific Islander or Other
    </td>
   </tr>
 </table>
@@ -495,9 +498,20 @@ Ethnicity: no data
 The first challenge the team encountered was the discrepancies in reporting between counties. This includes the reporting of data as both raw data counts and percentages of the total confirmed cases. In addition, there are variations in categorization and reporting. For instance, some counties report 2+ races as biracial or multiracial or do not report one of our designated categories at all.
 
 
+#### Combining Counties into Health Districts
+
+Another challenge that we encountered is that Virginia reports case numbers on race and ethnicity on a health district level instead of counties. A health district is a combination for multiple counties. When the Virginia Department of Health (VDH) was asked about this, they stated that Sections 32.1-36, 32.1-38, and 32.1-41 of the Code of Virginia required the VDH to protect the anonymity of people. 
+
+This was an issue because health districts do not have FIPS codes, which are unique codes that identify U.S states and counties. FIPS codes are important for data analysis, so we converted the data presented on the health district level into county level. 
+
+In order to resolve this issue, we determined the proportion of each race and ethnicity that is present in each county of the health district, using the American Community Survey data from 2018. Using these proportions, we calculated the approximate number of cases by race and ethnicity in each county of Virginia. Our uploaded data currently reports the data for Virginia at a county level, but it is an approximation so that must be taken into consideration when analyzing the data.
+
+
 ##### Data Releases
 
 The next challenge interns face is the complications of a technology-based reporting system. Throughout the project, there have been technical difficulties with sites crashing, unclear reporting times based on test-updates. There is also wide variation in when counties report ranging from weekly to hourly updates. For that reason, we record data daily and those counties reporting less frequently are denoted.
+
+In addition, our data is currently in the long format. We have SAS code available on our [GitHub](https://github.com/BroadStreet-Health/open-source-contributions/tree/main/Race-and-Ethnicity-VAcode) to convert this data into wide format. 
 
 
 ### References
