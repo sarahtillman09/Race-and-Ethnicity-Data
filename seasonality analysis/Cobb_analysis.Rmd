@@ -1,0 +1,437 @@
+---
+title: "Cobb County, GA Seasonal Analysis"
+author: "Sarah Tillman"
+date: "6/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(tidyverse)
+library(tidyr)
+library(gridExtra)
+```
+
+# Functions
+```{r}
+# function to convert long form of table to short form
+long.to.short = function(df, group_var_index, group_by_var_index){
+  group_var <- colnames(df)[group_var_index]
+  group_by_var <- colnames(df)[group_by_var_index]
+  df <- as.matrix(df)
+  # identify unique groups in group var of long df
+  groups <- unique(df[,group_var_index])
+  # identify unique values for var to group by in long df -- usually date
+  new_rows <- unique(df[,group_by_var_index])
+  # initialize new data frame
+  df.short <- as.data.frame(new_rows, col.names=c(group_by_var))
+  
+  for(g in groups){
+  single_group <- cobb_long_all_months %>%
+    filter(group == cat) %>%
+    select(-c(group))
+  colnames(single_group)[2] <- cat
+  cobb_all_months_short <-merge(cobb_all_months_short, single_group, by = "date", sort = TRUE)
+  }
+  
+  return(df.short)
+}
+```
+
+```{r}
+col_test <- as.matrix(cobb_jan_long)
+as.data.frame(col_test[,2])
+```
+
+# Data Import
+```{r load in raw data, message= F}
+raw_oct_june_data <- read_csv(unzip("../Race-and-Ethnicity-Data-1.1/Health_equity_data.csv.zip", "Health_equity_data.csv"))
+raw_nov_data <- read_csv(unzip("../Health_equity_data.zip", "Health_equity_data.csv"), col_names = F)
+raw_dec_data <- read_csv("../pub_equity_thru_122020.csv")
+raw_jan_data <- read_csv("../pub_equity_thru_012021.csv")
+raw_feb_data <- read_csv("../pub_equity_thru_022021.csv")
+```
+```{r filtering to only Cobb}
+# renaming columns
+colnames(raw_oct_june_data) <- c("county", "date", "group", "cases")
+colnames(raw_nov_data) <- c("county", "date", "group", "cases")
+colnames(raw_dec_data) <- c("county", "date", "group", "cases")
+colnames(raw_jan_data) <- c("county", "date", "group", "cases")
+colnames(raw_feb_data) <- c("county", "date", "group", "cases")
+
+# filtering data to only include Cobb
+cobb_jun_oct_long <- raw_oct_june_data[ which(raw_oct_june_data$county=="Cobb County, Georgia"), ]
+cobb_nov_long <- raw_nov_data[ which(raw_nov_data$county=="Cobb County, Georgia"), ]
+cobb_dec_long <- raw_dec_data[ which(raw_dec_data$county=="Cobb County, Georgia"), ]
+cobb_jan_long <- raw_jan_data[ which(raw_jan_data$county=="Cobb County, Georgia"), ]
+cobb_feb_long <- raw_feb_data[ which(raw_feb_data$county=="Cobb County, Georgia"), ]
+```
+
+```{r drop na's and unreported columns}
+cobb_jun_oct_long <- drop_na(cobb_jun_oct_long)
+cobb_nov_long <- drop_na(cobb_nov_long)
+cobb_dec_long <- drop_na(cobb_dec_long)
+cobb_jan_long <- drop_na(cobb_jan_long)
+cobb_feb_long <- drop_na(cobb_feb_long)
+```
+
+```{r}
+cobb_jun_oct_long %>%
+  filter(cases=='-')
+```
+
+```{r drop values for non-reported or rarely reported races}
+cobb_jun_oct_long <- cobb_jun_oct_long %>%
+  select(-c("county")) %>%
+  filter(group != "2+_races" & group != "native_hawaiian_pacific_islander" & group !=
+           "american_indian_alaska_native" & group != "other" & group != "cumulative_cases" & group != "unknown" &
+           group != "not_specified")
+cobb_nov_long <- cobb_nov_long %>%
+  select(-c("county")) %>%
+  filter(group != "2+_races" & group != "native_hawaiian_pacific_islander" & group !=
+           "american_indian_alaska_native" & group != "other" & group != "cumulative_cases" & group != "unknown" &
+           group != "not_specified")
+cobb_dec_long <- cobb_dec_long %>%
+  select(-c("county")) %>%
+  filter(group != "2+_races" & group != "native_hawaiian_pacific_islander" & group !=
+           "american_indian_alaska_native" & group != "other" & group != "cumulative_cases" & group != "unknown" &
+           group != "not_specified")
+cobb_jan_long  <- cobb_jan_long  %>%
+  select(-c("county")) %>%
+  filter(group != "2+_races" & group != "native_hawaiian_pacific_islander" & group !=
+           "american_indian_alaska_native" & group != "other" & group != "cumulative_cases" & group != "unknown" &
+           group != "not_specified")
+cobb_feb_long <- cobb_feb_long %>%
+  select(-c("county")) %>%
+  filter(group != "2+_races" & group != "native_hawaiian_pacific_islander" & group !=
+           "american_indian_alaska_native" & group != "other" & group != "cumulative_cases" & group != "unknown" &
+           group != "not_specified")
+
+```
+
+```{r identify & remove other missing values}
+cobb_jun_oct_long %>%
+  filter(cases == "-")
+cobb_nov_long %>%
+  filter(cases == "-")
+cobb_dec_long %>%
+  filter(cases == "-")
+cobb_feb_long %>%
+  filter(cases == "-")
+cobb_jan_long %>%
+  filter(cases == "-")
+
+# removing "-" values
+cobb_jun_oct_long <- cobb_jun_oct_long %>%
+  filter(cases != "-")
+cobb_nov_long <- cobb_nov_long %>%
+  filter(cases != "-")
+cobb_dec_long <- cobb_dec_long %>%
+  filter(cases != "-")
+cobb_jan_long  <- cobb_jan_long  %>%
+  filter(cases != "-")
+cobb_feb_long <- cobb_feb_long %>%
+  filter(cases != "-")
+```
+```{r}
+# stripping commas from numbers in Jun to Oct data
+for(n in 1:length(cobb_jun_oct_long$cases)){
+  val = cobb_jun_oct_long$cases[n]
+  if(str_detect(val, "[,.]")){
+    val <- str_c(substr(val, 1, 1), substr(val, 3, 5), sep='')
+    cobb_jun_oct_long$cases[n] <- val
+  }
+}
+```
+
+```{r convert from long to short}
+# combine all months data into single df
+cobb_long_all_months <- rbind(cobb_jun_oct_long, cobb_dec_long, cobb_feb_long, cobb_jan_long, cobb_nov_long)
+
+# convert cases to numeric vector
+cobb_long_all_months$cases <- as.numeric(cobb_long_all_months$cases)
+
+#identify diff racial/ethnic categories
+race_eth_categories <- unique(cobb_long_all_months$group)
+date <- unique(cobb_long_all_months$date)
+
+# initialize new data frame
+cobb_all_months_short <- data.frame(date)
+
+for(cat in race_eth_categories){
+  single_group <- cobb_long_all_months %>%
+    filter(group == cat) %>%
+    select(-c(group))
+  colnames(single_group)[2] <- cat
+  cobb_all_months_short <-merge(cobb_all_months_short, single_group, by = "date", sort = TRUE)
+}
+```
+
+```{r split data up by seasons}
+cobb_summer <- cobb_all_months_short %>%
+  filter(date < '2020-09-01')
+cobb_fall <- cobb_all_months_short %>%
+  filter(date >= '2020-09-01' & date < '2020-12-01')
+cobb_winter <- cobb_all_months_short %>%
+  filter(date >= '2020-12-01')
+```
+
+```{r import overall data counts, message = F, error=F}
+cummulative_counts_raw <- read_csv("../Coronavirus by County.csv")
+cobb_only <- cummulative_counts_raw %>%
+  filter(fips == "05000US13067")
+```
+
+```{r drop unneccesary case/deaths data}
+# drop data prior to 6/15/20 and after 2/28/21
+cobb_cases_deaths <- cobb_only %>%
+  select(-c(1:593, 1631:length(cobb_only)))
+
+# only keep confirmed cases
+all_cases <- data.frame(date = as.Date(character()),
+                        all_cases = integer())
+for(c in 1:ncol(cobb_cases_deaths)){
+  col <- colnames(cobb_cases_deaths)[c]
+  if(str_detect(col, "tstpos")){
+    year <- str_c('20', substring(col, 12, 13), sep ='')
+    day <- substring(col, 10, 11)
+    month <- substring(col, 8, 9)
+    date <- as.Date(str_c(year, month, day, sep = '-'))
+    new_row <- data.frame(date=date, all_cases=as.data.frame(cobb_cases_deaths)[1,col])
+    all_cases <- rbind(all_cases, new_row)
+  }
+}
+```
+
+```{r join all cases w cases by race/ethnicity}
+cobb_summer <- inner_join(cobb_summer, all_cases, by = "date")
+cobb_winter <- inner_join(cobb_winter, all_cases, by = "date")
+cobb_fall <- inner_join(cobb_fall, all_cases, by = "date")
+```
+
+```{r add in number of other cases/race not reported}
+# for summer data
+no_eth <- rep(0, nrow(cobb_summer))
+no_race <- rep(0, nrow(cobb_summer))
+cobb_summer$unknown_eth <- no_eth
+cobb_summer$unknown_race <- no_race
+for(d in 1:nrow(cobb_summer)){
+  cobb_summer$unknown_eth[d] <- cobb_summer$all_cases[d] - cobb_summer$`hispanic_(all_races)`[d] -
+    cobb_summer$`non-hispanic`[d]
+  cobb_summer$unknown_race[d] <- cobb_summer$all_cases[d] - cobb_summer$asian[d] -
+    cobb_summer$black_african_american[d] - cobb_summer$white[d]
+}
+
+# for fall data
+no_eth <- rep(0, nrow(cobb_fall))
+no_race <- rep(0, nrow(cobb_fall))
+cobb_fall$unknown_eth <- no_eth
+cobb_fall$unknown_race <- no_race
+for(d in 1:nrow(cobb_fall)){
+  cobb_fall$unknown_eth[d] <- cobb_fall$all_cases[d] - cobb_fall$`hispanic_(all_races)`[d] -
+    cobb_fall$`non-hispanic`[d]
+  cobb_fall$unknown_race[d] <- cobb_fall$all_cases[d] - cobb_fall$asian[d] -
+    cobb_fall$black_african_american[d] - cobb_fall$white[d]
+}
+# for winter data
+no_eth <- rep(0, nrow(cobb_winter))
+no_race <- rep(0, nrow(cobb_winter))
+cobb_winter$unknown_eth <- no_eth
+cobb_winter$unknown_race <- no_race
+for(d in 1:nrow(cobb_winter)){
+  cobb_winter$unknown_eth[d] <- cobb_winter$all_cases[d] - cobb_winter$`hispanic_(all_races)`[d] -
+    cobb_winter$`non-hispanic`[d]
+  cobb_winter$unknown_race[d] <- cobb_winter$all_cases[d] - cobb_winter$asian[d] -
+    cobb_winter$black_african_american[d] - cobb_winter$white[d]
+}
+```
+
+```{r estimate percent of case which did not report race/ethnicity}
+# percent of cases not reporting race/ethnicity
+cobb_summer$percent_race_nr <- cobb_summer$unknown_race / cobb_summer$all_cases
+cobb_summer$percent_eth_nr <- cobb_summer$unknown_eth / cobb_summer$all_cases
+cobb_fall$percent_race_nr <- cobb_fall$unknown_race / cobb_fall$all_cases
+cobb_fall$percent_eth_nr <- cobb_fall$unknown_eth / cobb_fall$all_cases
+cobb_winter$percent_race_nr <- cobb_winter$unknown_race / cobb_winter$all_cases
+cobb_winter$percent_eth_nr <- cobb_winter$unknown_eth / cobb_winter$all_cases
+
+mean(cobb_summer$percent_race_nr)
+mean(cobb_summer$percent_eth_nr)
+mean(cobb_fall$percent_race_nr)
+mean(cobb_fall$percent_eth_nr)
+mean(cobb_winter$percent_race_nr)
+mean(cobb_winter$percent_eth_nr)
+
+# population counts
+cobb_pop_all <- 751218
+cobb_white_pop <- 440462
+cobb_black_pop <- 207059
+cobb_asian_pop <- 40271
+cobb_hispanic_pop <- 97481
+cobb_non_hispanic_pop <- 653737
+```
+
+
+```{r}
+cobb_summer %>%
+  ggplot(aes(y=white, x=date)) + geom_line()
+cobb_fall %>%
+  ggplot(aes(y=white, x=date)) + geom_line()
+cobb_winter %>%
+  ggplot(aes(y=white, x=date)) + geom_line()
+```
+```{r removing reporting errors/major trend breaks}
+# remove sharp drops on graph
+cobb_winter <- cobb_winter %>%
+  filter(date < '2021-02-25')
+cobb_fall <- cobb_fall %>%
+  filter(date != '2020-09-12')
+```
+
+```{r convert cummulative to daily case numbers}
+# for summer data
+daily_asian <- rep(0, nrow(cobb_summer))
+daily_all <- rep(0, nrow(cobb_summer))
+daily_black_aa <- rep(0, nrow(cobb_summer))
+daily_hispanic <- rep(0, nrow(cobb_summer))
+daily_non_hispanic <- rep(0, nrow(cobb_summer))
+daily_white <- rep(0, nrow(cobb_summer))
+daily_other_race <- rep(0, nrow(cobb_summer))
+daily_unknown_eth <- rep(0, nrow(cobb_summer))
+
+for(d in 2:nrow(cobb_summer)){
+  daily_asian[d] <- cobb_summer$asian[d] - cobb_summer$asian[d-1]
+  daily_all[d] <- cobb_summer$all_cases[d] - cobb_summer$all_cases[d-1]
+  daily_black_aa[d] <- cobb_summer$black_african_american[d] - cobb_summer$black_african_american[d-1]
+  daily_hispanic[d] <- cobb_summer$`hispanic_(all_races)`[d] - cobb_summer$`hispanic_(all_races)`[d-1]
+  daily_non_hispanic[d] <- cobb_summer$`non-hispanic`[d] - cobb_summer$`non-hispanic`[d-1]
+  daily_white[d] <- cobb_summer$white[d] - cobb_summer$white[d-1]
+  daily_other_race[d] <- cobb_summer$unknown_race[d] - cobb_summer$unknown_race[d-1]
+  daily_unknown_eth[d] <- cobb_summer$unknown_eth[d] - cobb_summer$unknown_eth[d-1]
+}
+cobb_summer$daily_asian <- daily_asian
+cobb_summer$daily_all <- daily_all
+cobb_summer$daily_black_aa <- daily_black_aa
+cobb_summer$daily_hispanic <- daily_hispanic
+cobb_summer$daily_non_hispanic <- daily_non_hispanic
+cobb_summer$daily_white <- daily_white
+cobb_summer$daily_other_race <- daily_other_race
+cobb_summer$daily_unknown_eth <- daily_unknown_eth
+
+
+# for winter data
+daily_asian <- rep(0, nrow(cobb_winter))
+daily_all <- rep(0, nrow(cobb_winter))
+daily_black_aa <- rep(0, nrow(cobb_winter))
+daily_hispanic <- rep(0, nrow(cobb_winter))
+daily_non_hispanic <- rep(0, nrow(cobb_winter))
+daily_white <- rep(0, nrow(cobb_winter))
+daily_other_race <- rep(0, nrow(cobb_winter))
+daily_unknown_eth <- rep(0, nrow(cobb_winter))
+
+for(d in 2:nrow(cobb_winter)){
+  daily_asian[d] <- cobb_winter$asian[d] - cobb_winter$asian[d-1]
+  daily_all[d] <- cobb_winter$all_cases[d] - cobb_winter$all_cases[d-1]
+  daily_black_aa[d] <- cobb_winter$black_african_american[d] - cobb_winter$black_african_american[d-1]
+  daily_hispanic[d] <- cobb_winter$`hispanic_(all_races)`[d] - cobb_winter$`hispanic_(all_races)`[d-1]
+  daily_non_hispanic[d] <- cobb_winter$`non-hispanic`[d] - cobb_winter$`non-hispanic`[d-1]
+  daily_white[d] <- cobb_winter$white[d] - cobb_winter$white[d-1]
+  daily_other_race[d] <- cobb_winter$unknown_race[d] - cobb_winter$unknown_race[d-1]
+  daily_unknown_eth[d] <- cobb_winter$unknown_eth[d] - cobb_winter$unknown_eth[d-1]
+}
+
+cobb_winter$daily_asian <- daily_asian
+cobb_winter$daily_all <- daily_all
+cobb_winter$daily_black_aa <- daily_black_aa
+cobb_winter$daily_hispanic <- daily_hispanic
+cobb_winter$daily_non_hispanic <- daily_non_hispanic
+cobb_winter$daily_white <- daily_white
+cobb_winter$daily_other_race <- daily_other_race
+cobb_winter$daily_unknown_eth <- daily_unknown_eth
+
+
+# for fall data
+daily_asian <- rep(0, nrow(cobb_fall))
+daily_all <- rep(0, nrow(cobb_fall))
+daily_black_aa <- rep(0, nrow(cobb_fall))
+daily_hispanic <- rep(0, nrow(cobb_fall))
+daily_non_hispanic <- rep(0, nrow(cobb_fall))
+daily_white <- rep(0, nrow(cobb_fall))
+daily_other_race <- rep(0, nrow(cobb_fall))
+daily_unknown_eth <- rep(0, nrow(cobb_fall))
+
+for(d in 2:nrow(cobb_fall)){
+  daily_asian[d] <- cobb_fall$asian[d] - cobb_fall$asian[d-1]
+  daily_all[d] <- cobb_fall$all_cases[d] - cobb_fall$all_cases[d-1]
+  daily_black_aa[d] <- cobb_fall$black_african_american[d] - cobb_fall$black_african_american[d-1]
+  daily_hispanic[d] <- cobb_fall$`hispanic_(all_races)`[d] - cobb_fall$`hispanic_(all_races)`[d-1]
+  daily_non_hispanic[d] <- cobb_fall$`non-hispanic`[d] - cobb_fall$`non-hispanic`[d-1]
+  daily_white[d] <- cobb_fall$white[d] - cobb_fall$white[d-1]
+  daily_other_race[d] <- cobb_fall$unknown_race[d] - cobb_fall$unknown_race[d-1]
+  daily_unknown_eth[d] <- cobb_fall$unknown_eth[d] - cobb_fall$unknown_eth[d-1]
+}
+
+cobb_fall$daily_asian <- daily_asian
+cobb_fall$daily_all <- daily_all
+cobb_fall$daily_black_aa <- daily_black_aa
+cobb_fall$daily_hispanic <- daily_hispanic
+cobb_fall$daily_non_hispanic <- daily_non_hispanic
+cobb_fall$daily_white <- daily_white
+cobb_fall$daily_other_race <- daily_other_race
+cobb_fall$daily_unknown_eth <- daily_unknown_eth
+```
+
+```{r}
+p1 <- cobb_summer %>%
+  ggplot(aes(y=daily_white, x=date)) + geom_line()
+p2 <- cobb_fall %>%
+  ggplot(aes(y=daily_white, x=date)) + geom_line()
+p3 <- cobb_winter %>%
+  ggplot(aes(y=daily_white, x=date)) + geom_line()
+
+grid.arrange(p1, p2, p3, ncol=1)
+```
+```{r}
+p1 <- cobb_summer %>%
+  ggplot(aes(y=daily_white, x=date)) + geom_line()
+p2 <- cobb_summer %>%
+  ggplot(aes(y=daily_asian, x=date)) + geom_line()
+p3 <- cobb_summer %>%
+  ggplot(aes(y=daily_all, x=date)) + geom_line()
+p4 <- cobb_summer %>%
+  ggplot(aes(y=daily_black_aa, x=date)) + geom_line()
+
+grid.arrange(p1, p2, p3, p4, ncol=2)
+```
+
+```{r}
+p1 <- cobb_winter %>%
+  ggplot(aes(y=daily_white, x=date)) + geom_line()
+p2 <- cobb_winter %>%
+  ggplot(aes(y=daily_asian, x=date)) + geom_line()
+p3 <- cobb_winter %>%
+  ggplot(aes(y=daily_all, x=date)) + geom_line()
+p4 <- cobb_winter %>%
+  ggplot(aes(y=daily_black_aa, x=date)) + geom_line()
+
+grid.arrange(p1, p2, p3, p4, ncol=2)
+```
+
+```{r}
+p1 <- cobb_fall %>%
+  ggplot(aes(y=daily_white, x=date)) + geom_line()
+p2 <- cobb_fall %>%
+  ggplot(aes(y=daily_asian, x=date)) + geom_line()
+p3 <- cobb_fall %>%
+  ggplot(aes(y=daily_all, x=date)) + geom_line()
+p4 <- cobb_fall %>%
+  ggplot(aes(y=daily_black_aa, x=date)) + geom_line()
+
+grid.arrange(p1, p2, p3, p4, ncol=2)
+```
+```{r}
+# fixing outlier dates with large daily decrease in case numbers
+
+```
+

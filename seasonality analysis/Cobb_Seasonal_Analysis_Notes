@@ -1,0 +1,50 @@
+Notes on Cobb County Seasonal Analysis
+
+Some race categories were dropped due to incomplete or inconsistent reporting. These categories include:
+  American Indian/Alaskan Native
+  Native Hawaiian/Pacific Islander
+  2+ Races
+  Other
+
+Unknown Ethnicity & Cummulative Case Counts were also dropped from the data set due to incomplete information.
+  
+Some dates were missing data (or it was not reported). These dates include:
+  6/25/2020
+  7/1/2020
+  7/4/2020 & 7/5/2020 (4th of July weekend)
+  7/7/2020
+  7/12/2020
+  7/13/2020
+  8/19/2020
+  8/21/2020
+  8/22/2020
+  8/26/2020
+  8/28/2020
+  8/29/2020
+  
+  9/7/2020 (Labor Day)
+  9/19/2020 & 9/20/2020 (Weekend)
+  10/8/2020
+  10/11/2020 (Columbus Day)
+  10/13/2020
+  10/14/2020
+  11/25/2020 (Day before Thanksgiving)
+  
+  
+Journal article this project is based off of: 
+https://journals.sagepub.com/doi/10.1177/1176934321989695
+
+Data for total cummulative cases for a county were taken from the confirmed case totals provided in the Broadstreet Daily Numbers dataset for Cobb County, GA.
+
+The total number of cases recorded based on race and/or ethnicity do not add up to the cummulative total for confirmed cases on the corresponding date (even when including the not specified/unknown categories).
+
+In the data used, the average % of cases which did not report an ethnicity (or the ethnicity was included in the unknown category):
+  Summer: 0.5203167
+  Fall:  0.3344875
+  Winter: 0.2772638
+  
+In the data used, the average % of cases which did not report a race (or the race was included in the other/unknown category):
+  Summer: 0.5775404
+  Fall:  0.3780287
+  Winter: 0.3226512
+  
