@@ -1,0 +1,58 @@
+---
+title: "processing_broadstreet_data"
+author: "Sarah Tillman"
+date: "6/8/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r import overall data counts, message = F, error=F}
+cummulative_counts_raw <- read_csv("../Coronavirus by County.csv")
+cobb_only <- cummulative_counts_raw %>%
+  filter(fips == "05000US13067")
+```
+```{r drop unneccesary case/deaths data}
+# drop data prior to 6/15/20 and after 2/28/21
+cobb_cases_deaths <- cobb_only %>%
+  select(-c(1:593, 1631:length(cobb_only)))
+
+# only keep confirmed cases
+all_cases <- data.frame(date = as.Date(character()),
+                        all_cases = integer())
+for(c in 1:ncol(cobb_cases_deaths)){
+  col <- colnames(cobb_cases_deaths)[c]
+  if(str_detect(col, "tstpos")){
+    year <- str_c('20', substring(col, 12, 13), sep ='')
+    day <- substring(col, 10, 11)
+    month <- substring(col, 8, 9)
+    date <- as.Date(str_c(year, month, day, sep = '-'))
+    new_row <- data.frame(date=date, all_cases=as.data.frame(cobb_cases_deaths)[1,col])
+    all_cases <- rbind(all_cases, new_row)
+  }
+}
+```
+```{r join all cases w cases by race/ethnicity}
+cobb_summer <- inner_join(cobb_summer, reported_cases, by = "date")
+cobb_winter <- inner_join(cobb_winter, reported_cases, by = "date")
+cobb_fall <- inner_join(cobb_fall, reported_cases, by = "date")
+```
+
+```{r estimate percent of case which did not report race/ethnicity}
+# percent of cases not reporting race/ethnicity
+cobb_summer$percent_race_reported <- cobb_summer$all_cases_race / cobb_summer$reported_cases
+cobb_summer$percent_eth_reported <- cobb_summer$all_cases_eth / cobb_summer$reported_cases
+cobb_fall$percent_race_reported <- cobb_fall$all_cases_race / cobb_fall$reported_cases
+cobb_fall$percent_eth_reported <- cobb_fall$all_cases_eth / cobb_fall$reported_cases
+cobb_winter$percent_race_reported <- cobb_winter$all_cases_race / cobb_winter$reported_cases
+cobb_winter$percent_eth_reported <- cobb_winter$all_cases_eth / cobb_winter$reported_cases
+
+# population counts
+cobb_pop_all <- 751218
+cobb_white_pop <- 440462
+cobb_black_pop <- 207059
+cobb_asian_pop <- 40271
+cobb_hispanic_pop <- 97481
+cobb_non_hispanic_pop <- 653737
+```
