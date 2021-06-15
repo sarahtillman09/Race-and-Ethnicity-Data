@@ -1,8 +1,7 @@
 ---
 title: "Cobb County, GA Seasonal Analysis"
 author: "Sarah Tillman"
-date: "6/2/2021"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -13,7 +12,8 @@ library(tidyr)
 library(gridExtra)
 library(knitr)
 ```
-```{r functions}
+```{r my functions}
+# function to check if a character variable is actually a number (in the context of this dataset)
 check_if_number <- function(str){
   if(is.na(str) | str == '-'){
     return(FALSE)
@@ -23,7 +23,7 @@ check_if_number <- function(str){
   }
 }
 
-
+# function to reformat character variable to numeric variable when , or . was entered to mark the thousands place
 reformat_number <- function(str){
   if(str_detect(str, "[,.]")){
     str <- str_c(substr(str, 1, 1), substr(str, 3, 5), sep='')
@@ -31,7 +31,10 @@ reformat_number <- function(str){
   return(str)
 }
 ```
+
 # Data Import
+
+All data was forked and cloned from the GitHub repo except the Jun-Oct data zip file which was downloaded separately.
 ```{r load in raw data, message= F}
 raw_oct_june_data <- read_csv(unzip("../Race-and-Ethnicity-Data-1.1/Health_equity_data.csv.zip", "Health_equity_data.csv"))
 raw_nov_data <- read_csv(unzip("../Health_equity_data.zip", "Health_equity_data.csv"), col_names = F)
@@ -39,7 +42,9 @@ raw_dec_data <- read_csv("../pub_equity_thru_122020.csv")
 raw_jan_data <- read_csv("../pub_equity_thru_012021.csv")
 raw_feb_data <- read_csv("../pub_equity_thru_022021.csv")
 ```
-```{r filtering to only Cobb}
+
+Data was then filtered so it only included Cobb County.
+```{r filtering to only Cobb County}
 # renaming columns
 colnames(raw_oct_june_data) <- c("county", "date", "group", "cases")
 colnames(raw_nov_data) <- c("county", "date", "group", "cases")
@@ -47,20 +52,24 @@ colnames(raw_dec_data) <- c("county", "date", "group", "cases")
 colnames(raw_jan_data) <- c("county", "date", "group", "cases")
 colnames(raw_feb_data) <- c("county", "date", "group", "cases")
 
-# filtering data to only include Cobb
+# filtering monthy data to only include Cobb
 cobb_jun_oct_long <- raw_oct_june_data[ which(raw_oct_june_data$county=="Cobb County, Georgia"), ]
 cobb_nov_long <- raw_nov_data[ which(raw_nov_data$county=="Cobb County, Georgia"), ]
 cobb_dec_long <- raw_dec_data[ which(raw_dec_data$county=="Cobb County, Georgia"), ]
 cobb_jan_long <- raw_jan_data[ which(raw_jan_data$county=="Cobb County, Georgia"), ]
 cobb_feb_long <- raw_feb_data[ which(raw_feb_data$county=="Cobb County, Georgia"), ]
 ```
+
+Cobb County did not report any data for 2 or more races, and the data for cumulative cases was inaccurate, so both of these groups were dropped from the dataset. The "county" column was also dropped from the data frame since it was no longer necessary.
 ```{r dropping unnecessary rows}
 cobb_jun_oct_long <- cobb_jun_oct_long %>%
   select(-c("county")) %>%
   filter(group != "2+_races" & group != "cumulative_cases")
 ```
+
+The data was then converted from long form to short form to make identifying data entry errors & formatting issues easier. The Jun-Oct data was converted first since it contained several errors and data was reported inconsistently.
 ```{r convert from long form to short}
-# convert char to numerics if applicable
+# convert char to numeric variables
 for(n in 1:nrow(cobb_jun_oct_long)){
   val <- cobb_jun_oct_long$cases[n]
   if(check_if_number(val)){
@@ -71,11 +80,12 @@ for(n in 1:nrow(cobb_jun_oct_long)){
   }
 }
 
-date <- unique(cobb_jun_oct_long$date)
-cobb_jun_oct_short <- data.frame(date)
+date <- unique(cobb_jun_oct_long$date)     # list of dates in data set
+cobb_jun_oct_short <- data.frame(date)     # initializing new data frame for short form 
 
-race_eth_categories <- unique(cobb_jun_oct_long$group)
+race_eth_categories <- unique(cobb_jun_oct_long$group)     # list of all racial/ethnic groups reported
 
+# add each group as its own column w each row representing a single date
 for(cat in race_eth_categories){
   single_group <- cobb_jun_oct_long %>%
     filter(group == cat) %>%
@@ -85,11 +95,13 @@ for(cat in race_eth_categories){
   cobb_jun_oct_short <- merge(cobb_jun_oct_short, single_group, by="date")
 }
 ```
+
+Due to inconsistent reporting of the unknown and other race categories and the discontinuation of data on American Indian/Alaska Native and Native Hawaiian/Other Pacific Islander cases, these 4 groups were added together into one category in the table. 
 ```{r combine all other & unknown categories into single number per row}
 other_race <- rep(0, nrow(cobb_jun_oct_short))
 for(d in 1:nrow(cobb_jun_oct_short)){
   
-  # add american_indian_alaska_native + native_hawaiian_pacific_islander +  other + unknown
+  # add american_indian_alaska_native + native_hawaiian_pacific_islander +  other + unknown into "other_race"
   
   aian <- cobb_jun_oct_short$american_indian_alaska_native[d]
   if(check_if_number(aian)){
@@ -111,19 +123,26 @@ for(d in 1:nrow(cobb_jun_oct_short)){
     other_race[d] <- other_race[d] + as.numeric(unknown)
   }
 }
-
 ```
+
+After adding those 4 groups together, the original columns were dropped from the table. Additionally, dates which contained any NA values were dropped from the dataset.
 ```{r drop values for other race categories & na dates}
 cobb_jun_oct_short <- cobb_jun_oct_short %>%
   select(-c("native_hawaiian_pacific_islander", "american_indian_alaska_native", "other", "unknown")) %>%
   cbind(other_race) %>%
   drop_na()
 ```
+
+The data from Nov-Feb was formatted more consistently and only required non-reported racial/ethnic groups to be dropped (as well as the "county" column). 
 ```{r dropping unnecessary rows from nov data }
 cobb_nov_long <- cobb_nov_long %>%
   select(-c(county)) %>%
   filter(group != 'native_hawaiian_pacific_islander' & group != "american_indian_alaska_native" & 
            group != "2+_races" & group != "cumulative_cases")
+
+cobb_nov_long$cases <- as.numeric(cobb_nov_long$cases)     # converting remaining counts to numeric
+
+# Dec, Feb & Jan data no longer had rows for Native Hawaiian, American Indian & 2+ races
 
 cobb_dec_long <- cobb_dec_long %>%
   select(-c(county)) %>%
@@ -137,18 +156,18 @@ cobb_feb_long <- cobb_feb_long %>%
   select(-c(county)) %>%
   filter(group != "cumulative_cases")
 ```
-```{r combine nov-feb data}
-# convert nov cases to numeric
-cobb_nov_long$cases <- as.numeric(cobb_nov_long$cases)
 
-cobb_nov_feb_long <- rbind(cobb_nov_long, cobb_dec_long, cobb_jan_long, cobb_feb_long)
-```
+The data Nov-Feb was then combined into a single data frame and converted from long form to short form.
 ```{r convert nov-feb from long to short}
-date <- unique(cobb_nov_feb_long$date)
-cobb_nov_feb_short <- data.frame(date)
+# combining Nov-Feb data frames
+cobb_nov_feb_long <- rbind(cobb_nov_long, cobb_dec_long, cobb_jan_long, cobb_feb_long)
 
-race_eth_categories <- unique(cobb_nov_feb_long$group)
+date <- unique(cobb_nov_feb_long$date)     # list of dates in dataset
+cobb_nov_feb_short <- data.frame(date)     # initializing new data frame for short form
 
+race_eth_categories <- unique(cobb_nov_feb_long$group)     # list of racial/ethnic groups in dataset
+
+# add each group as its own column w each row representing a single date
 for(cat in race_eth_categories){
   single_group <-  cobb_nov_feb_long %>%
     filter(group == cat) %>%
@@ -158,6 +177,8 @@ for(cat in race_eth_categories){
   cobb_nov_feb_short <- merge(cobb_nov_feb_short, single_group, by="date")
 }
 ```
+
+To keep formatting consistent with the Jun-Oct data, the other & unknown race categories in the Nov-Feb dataset were combined into a single column. 
 ```{r combine other & unknown into single category}
 # create other_race column
 cobb_nov_feb_short$other_race <- cobb_nov_feb_short$other + cobb_nov_feb_short$unknown
@@ -166,8 +187,10 @@ cobb_nov_feb_short$other_race <- cobb_nov_feb_short$other + cobb_nov_feb_short$u
 cobb_nov_feb_short <- cobb_nov_feb_short %>%
   select(-c(other, unknown))
 ```
+
+The Jun-Oct & Nov-Feb data frames were then combined. After combining the datasets, there were 21 dates for which data was not reported. Most of these dates with the exception of Thanksgiving were in the Jun-Oct dataset. The first date was which data was reported was 6/15/2020.  
 ```{r combine both df into single df}
-# convert columns into numerics
+# convert columns into numeric variables
 cobb_jun_oct_short$asian <- as.numeric(cobb_jun_oct_short$asian)
 cobb_jun_oct_short$black_african_american <- as.numeric(cobb_jun_oct_short$black_african_american)
 cobb_jun_oct_short$`hispanic_(all_races)` <- as.numeric(cobb_jun_oct_short$`hispanic_(all_races)`)
@@ -178,12 +201,19 @@ cobb_jun_oct_short$white <- as.numeric(cobb_jun_oct_short$white)
 # combine both short df into single df
 cobb_all_months_short <- rbind(cobb_jun_oct_short, cobb_nov_feb_short)
 ```
+
+To make analysis more meaningful and visualizations more informative, major trend breaks were either removed from the data or corrected when possible. There were several dates where it looked like the numbers for the Hispanic count and the Non-Hispanic count was swapped, so these cases were fixed. There was also an error in the other_case column on 7/31 which resulted in a significant decrease in cases, likely due to a number being left out during data entry. The value from the day before was used to replace this value.
+
+For the trend breaks not due to data entry mistakes, most were simply removed from the data. Most of the major decreases in cases were immediately preceded by a large jump in the number of reported cases, so usually the date of the large increase was removed, allowing the case number to remain relatively constant. 
+
+There were several trend breaks in December which were slightly more complicated that were not removed at this time.
 ```{r removing major outliers}
 cobb_all_months_short <- cobb_all_months_short %>%
   filter(date < '2021-02-25' & date != '2020-09-12' & date != '2020-07-18' & date != '2020-09-18' & 
            date != '2020-11-12')
 
 # switching incorrect data entry 
+
 cobb_sept_nine <- cobb_all_months_short %>%
   filter(date == "2020-09-09")
 cobb_all_months_short$`hispanic_(all_races)`[69] <- cobb_sept_nine$`non-hispanic`[1]
@@ -212,7 +242,10 @@ cobb_all_months_short$`non-hispanic`[17] <- cobb_july_errors$`hispanic_(all_race
 # fixing error in other race cases on 7/31
 cobb_all_months_short$other_race[36] <- cobb_all_months_short$other_race[35]
 ```
-```{r add daily numbers, case rates & cumulative case counts}
+
+After the trend breaks were removed, the overall case count for all races (including the other_race category) and the overall case count for ethnicity (including the not_specified category) were added as columns in the data set.
+The counts for each racial/ethnic group were also converted to case rates based on the population numbers reported in the 2019 ACS.
+```{r add case rates & cumulative case counts}
 # population counts
 cobb_pop_all <- 751218
 cobb_white_pop <- 440462
@@ -234,7 +267,10 @@ cobb_all_months_short$hispanic_rate <- cobb_all_months_short$`hispanic_(all_race
 cobb_all_months_short$non_hispanic_rate <- cobb_all_months_short$`non-hispanic` / cobb_non_hispanic_pop
 cobb_all_months_short$all_race_rate <- cobb_all_months_short$all_cases_race / cobb_pop_all
 cobb_all_months_short$all_eth_rate <- cobb_all_months_short$all_cases_eth / cobb_pop_all
+```
 
+The daily change in case numbers for each group was then calculated and added to the table. The daily changes in cases were also scaled by the population size of each group.
+```{r add daily numbers}
 daily_asian <- rep(0, nrow(cobb_all_months_short))
 daily_all_race <- rep(0, nrow(cobb_all_months_short))
 daily_all_eth <- rep(0, nrow(cobb_all_months_short))
@@ -280,6 +316,8 @@ cobb_all_months_short$daily_asian_rate[is.nan(cobb_all_months_short$daily_asian_
 cobb_all_months_short$daily_black_rate[is.nan(cobb_all_months_short$daily_black_rate)] <- 0
 cobb_all_months_short$daily_white_rate[is.nan(cobb_all_months_short$daily_white_rate)] <- 0
 ```
+
+Data was split into seasonal datasets for initial analysis and to identify any remaining trend breaks.
 ```{r split into seasonal data}  
 cobb_summer <- cobb_all_months_short %>%
   filter(date < '2020-09-01')
@@ -288,18 +326,25 @@ cobb_fall <- cobb_all_months_short %>%
 cobb_winter <- cobb_all_months_short %>%
   filter(date >= '2020-12-01')
 ```
+
+Data was then recombined into a long format using only the cumulative and daily case rates calculated above. This was done to allow the racial/ethnic group to be used as a factor variable which made graphing easier using the ggplot package. 
 ```{r recombine data into long form w just rates}
+# data frame w only cumulative case rates by race
 cobb_all_short_race_rates <- cobb_all_months_short %>%
   select(c(1, 11, 12, 13, 16))
+# data frame w only cumulative case rates by ethnicity
 cobb_all_short_eth_rates <- cobb_all_months_short %>%
   select(c(1, 14, 15, 17))
+# data frame w only daily case rates by race
 cobb_all_short_daily_race_rates <- cobb_all_months_short %>%
   select(c(1, 27, 28, 31))
+# data frame w only daily case rates by ethnicity
 cobb_all_short_daily_eth_rates <- cobb_all_months_short %>%
   select(c(1, 29, 30))
 
-cobb_all_long_race_rates <- data.frame()
+cobb_all_long_race_rates <- data.frame()     # new data frame for cumulative race rates
 
+# converting short form back into long form
 for(d in 1:nrow(cobb_all_short_race_rates)){
   date <- cobb_all_short_race_rates$date[d]
   for(c in 2:ncol(cobb_all_short_race_rates)){
@@ -310,9 +355,10 @@ for(d in 1:nrow(cobb_all_short_race_rates)){
   }
 }
 
-cobb_all_long_race_rates$date <- as.Date(cobb_all_long_race_rates$date, format="%Y-%m-%d")
+# converting group to a factor variable
 cobb_all_long_race_rates$category <- as.factor(cobb_all_long_race_rates$category)
 
+# spliting data up by season
 cobb_summer_long_rr <- cobb_all_long_race_rates %>%
   filter(date < '2020-09-01')
 cobb_fall_long_rr <- cobb_all_long_race_rates %>%
@@ -320,8 +366,11 @@ cobb_fall_long_rr <- cobb_all_long_race_rates %>%
 cobb_winter_long_rr <- cobb_all_long_race_rates %>%
   filter(date >= '2020-12-01')
 
-cobb_all_long_eth_rates <- data.frame()
 
+
+cobb_all_long_eth_rates <- data.frame()    # new data frame for cumulative ethnicity rates
+
+# converting short form back into long form
 for(d in 1:nrow(cobb_all_short_eth_rates)){
   date <- cobb_all_short_eth_rates$date[d]
   for(c in 2:ncol(cobb_all_short_eth_rates)){
@@ -332,9 +381,10 @@ for(d in 1:nrow(cobb_all_short_eth_rates)){
   }
 }
 
-cobb_all_long_eth_rates$date <- as.Date(cobb_all_long_eth_rates$date)
+# converting group to a factor variable
 cobb_all_long_eth_rates$category <- as.factor(cobb_all_long_eth_rates$category)
 
+# splitting data up by season
 cobb_summer_long_er <- cobb_all_long_eth_rates %>%
   filter(date < '2020-09-01')
 cobb_fall_long_er <- cobb_all_long_eth_rates %>%
@@ -342,8 +392,12 @@ cobb_fall_long_er <- cobb_all_long_eth_rates %>%
 cobb_winter_long_er <- cobb_all_long_eth_rates %>%
   filter(date >= '2020-12-01')
 
-cobb_all_long_daily_race_rates <- data.frame()
 
+
+
+cobb_all_long_daily_race_rates <- data.frame()     # new data frame for daily race rates
+
+# converting short form back into long
 for(d in 1:nrow(cobb_all_short_daily_race_rates)){
   date <- cobb_all_short_daily_race_rates$date[d]
   for(c in 2:ncol(cobb_all_short_daily_race_rates)){
@@ -354,9 +408,10 @@ for(d in 1:nrow(cobb_all_short_daily_race_rates)){
   }
 }
 
-cobb_all_long_daily_race_rates$date <- as.Date(cobb_all_long_daily_race_rates$date)
+# converting group into a factor variable
 cobb_all_long_daily_race_rates$category <- as.factor(cobb_all_long_daily_race_rates$category)
 
+# splitting data up by season
 cobb_summer_long_drr <- cobb_all_long_daily_race_rates %>%
   filter(date < '2020-09-01')
 cobb_fall_long_drr <- cobb_all_long_daily_race_rates %>%
@@ -364,8 +419,12 @@ cobb_fall_long_drr <- cobb_all_long_daily_race_rates %>%
 cobb_winter_long_drr <- cobb_all_long_daily_race_rates %>%
   filter(date >= '2020-12-01')
 
-cobb_all_long_daily_eth_rates <- data.frame()
 
+
+
+cobb_all_long_daily_eth_rates <- data.frame()    # new data frame for daily ethnicity rates
+
+# converting short form back into long form
 for(d in 1:nrow(cobb_all_short_daily_eth_rates)){
   date <- cobb_all_short_daily_eth_rates$date[d]
   for(c in 2:ncol(cobb_all_short_daily_eth_rates)){
@@ -376,9 +435,10 @@ for(d in 1:nrow(cobb_all_short_daily_eth_rates)){
   }
 }
 
-cobb_all_long_daily_eth_rates$date <- as.Date(cobb_all_long_daily_eth_rates$date)
+# converting group into factor variable
 cobb_all_long_daily_eth_rates$category <- as.factor(cobb_all_long_daily_eth_rates$category)
 
+# splitting data up by season
 cobb_summer_long_der <- cobb_all_long_daily_eth_rates %>%
   filter(date < '2020-09-01')
 cobb_fall_long_der <- cobb_all_long_daily_eth_rates %>%
@@ -386,7 +446,13 @@ cobb_fall_long_der <- cobb_all_long_daily_eth_rates %>%
 cobb_winter_long_der <- cobb_all_long_daily_eth_rates %>%
   filter(date >= '2020-12-01')
 ```
+
+
+
 # Data Visualization
+
+
+Basic plots from initial short form summer data, split by race.
 ```{r summer graphs}
 p1 <- cobb_summer %>%
   ggplot(aes(y= white_rate, x=date)) + geom_line()
@@ -399,6 +465,8 @@ p4 <- cobb_summer %>%
 
 grid.arrange(p1, p2, p3, p4)
 ```
+
+Basic plots from initial short form winter data, split by race.
 ```{r winter graphs}
 p1 <- cobb_winter %>%
   ggplot(aes(y=daily_white, x=date)) + geom_line()
@@ -411,6 +479,8 @@ p4 <- cobb_winter %>%
 
 grid.arrange(p1, p2, p3, p4, ncol=2)
 ```
+
+Basic plots from initial short form fall data, split by race.
 ```{r fall graphs}
 p1 <- cobb_fall %>%
   ggplot(aes(y=daily_white, x=date)) + geom_line()
@@ -423,18 +493,23 @@ p4 <- cobb_fall %>%
 
 grid.arrange(p1, p2, p3, p4, ncol=2)
 ```
+
+
+Graphs using long form data sets to show cumulative rates by each race for each season.
 ```{r race rate graphs}
 p1 <- cobb_summer_long_rr %>%
   ggplot(aes(group= category, colour=category, x=date, y=rate)) + geom_line() + labs(main="COVID-19 Summer Infection Rates by Race", x="Date", y="Rate") + theme_light() + scale_colour_discrete(name="Race", labels= c("All Races", "Asian", "Black", "White")) + scale_x_date(date_breaks = "1 month", date_labels = "%b")
 
 p2 <- cobb_fall_long_rr %>%
-  ggplot(aes(group= category, colour=category, x=date, y=rate)) + geom_line() + labs(main="COVID-19 Fall Infection Rates by Race", x="Date", y="Rate") + theme_light() + scale_colour_discrete(name="Race", labels= c("All Cases", "Asian", "Black", "White")) + scale_x_date(date_breaks = "1 month", date_labels = "%b")
+  ggplot(aes(group= category, colour=category, x=date, y=rate)) + geom_line() + labs(main="COVID-19 Fall Infection Rates by Race", x="Date", y="Rate") + theme_light() + scale_colour_discrete(name="Race", labels= c("All Races", "Asian", "Black", "White")) + scale_x_date(date_breaks = "1 month", date_labels = "%b")
 
 p3 <- cobb_winter_long_rr %>%
   ggplot(aes(group= category, colour=category, x=date, y=rate)) + geom_line() + labs(main="COVID-19  Winter Infection Rates by Race", x="Date", y="Rate") + theme_light() + scale_colour_discrete(name="Race", labels= c("All Races", "Asian", "Black", "White")) + scale_x_date(date_breaks = "1 month", date_labels = "%b")
 
 grid.arrange(p1, p2, p3)
 ```
+
+Graphs using long form data sets to show cumulative rates by ethnicity for each season.
 ```{r ethnicity rate graphs}
 p1 <- cobb_summer_long_er %>%
   ggplot(aes(group= category, colour=category, x=date, y=rate)) + geom_line() + labs(main="COVID-19 Summer Infection Rates by Ethnicity", x = "Date", y="Rate") + theme_light() + scale_colour_discrete(name="Ethnicity", labels=c("All Cases", "Hispanic", "Non-Hispanic")) + scale_x_date(date_breaks = "1 month", date_labels = "%b")
@@ -447,6 +522,8 @@ p3 <- cobb_winter_long_er %>%
 
 grid.arrange(p1, p2, p3)
 ```
+
+Graphs using long form data sets to show daily rates by race for each season.
 ```{r daily race rates graphs}
 p1 <- cobb_summer_long_drr %>%
   ggplot(aes(group= category, colour=category, x=date, y=rate)) + geom_line() + labs(main="COVID-19 Summer Daily Infection Rates by Race", x="Date", y="Rate") + theme_light() + scale_colour_discrete(name="Race", labels= c("Asian", "Black", "White")) + scale_x_date(date_breaks = "1 month", date_labels = "%b")
@@ -459,6 +536,8 @@ p3 <- cobb_winter_long_drr %>%
 
 grid.arrange(p1, p2, p3)
 ```
+
+Graphs using long form data sets to show daily rates by ethnicity for each season.
 ```{r daily ethnicity rates graphs}
 p1 <- cobb_summer_long_der %>%
   ggplot(aes(group= category, colour=category, x=date, y=rate)) + geom_line() + labs(main="COVID-19 Summer Daily Infection Rates by Ethnicity", x = "Date", y="Rate") + theme_light() + scale_colour_discrete(name="Ethnicity", labels=c("Hispanic", "Non-Hispanic")) + scale_x_date(date_breaks = "1 month", date_labels = "%b")
@@ -471,37 +550,57 @@ p3 <- cobb_winter_long_der %>%
 
 grid.arrange(p1, p2, p3)
 ```
+
+Graphs for all 3 seasons showing the same 4 things as above. Graphs 1 & 2 were used in the presentation
 ```{r graphs w all dates}
 cobb_all_long_race_rates %>%
-  ggplot(aes(group= category, colour=category, x=date, y=rate)) + geom_line() + labs(x="Date", y="Rate") + theme_light() + scale_colour_discrete(name="Race", labels= c("All Races", "Asian", "Black", "White")) + scale_x_date(date_breaks = "1 month", date_labels = "%b") + 
-  theme(legend.position = "bottom")
+  ggplot(aes(group= category, colour=category, x=date, y=rate)) + geom_line() + labs(x="Date", y="Rate") +
+  theme_light() + scale_colour_discrete(name="Race", labels= c("All Races", "Asian", "Black", "White")) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") + theme(legend.position = "bottom")
 
 cobb_all_long_eth_rates %>%
-  ggplot(aes(group= category, colour=category, x=date, y=rate)) + geom_line() + labs(x = "Date", y="Rate") + theme_light() + scale_colour_discrete(name="Ethnicity", labels=c("All Cases", "Hispanic", "Non-Hispanic")) + scale_x_date(date_breaks = "1 month", date_labels = "%b") + 
-  theme(legend.position = "bottom")
+  ggplot(aes(group= category, colour=category, x=date, y=rate)) + geom_line() + labs(x = "Date", y="Rate") +
+  theme_light() + scale_colour_discrete(name="Ethnicity", labels=c("All Cases", "Hispanic", "Non-Hispanic")) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") + theme(legend.position = "bottom")
 
 cobb_all_long_daily_race_rates %>%
-  ggplot(aes(group= category, colour=category, x=date, y=rate)) + geom_line() + labs(x="Date", y="Rate") + theme_light() + scale_colour_discrete(name="Race", labels= c("Asian", "Black", "White")) + scale_x_date(date_breaks = "1 month", date_labels = "%b") + 
-  theme(legend.position = "bottom")
+  ggplot(aes(group= category, colour=category, x=date, y=rate)) + geom_line() + labs(x="Date", y="Rate") +
+  theme_light() + scale_colour_discrete(name="Race", labels= c("Asian", "Black", "White")) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") + theme(legend.position = "bottom")
 
 cobb_all_long_daily_eth_rates %>%
-  ggplot(aes(group= category, colour=category, x=date, y=rate)) + geom_line() + labs(x = "Date", y="Rate") + theme_light() + scale_colour_discrete(name="Ethnicity", labels=c("Hispanic", "Non-Hispanic")) + scale_x_date(date_breaks = "1 month", date_labels = "%b") + 
-  theme(legend.position = "bottom")
+  ggplot(aes(group= category, colour=category, x=date, y=rate)) + geom_line() + labs(x = "Date", y="Rate") +
+  theme_light() + scale_colour_discrete(name="Ethnicity", labels=c("Hispanic", "Non-Hispanic")) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") + theme(legend.position = "bottom")
 ```
+
+
+
 # Removing December Outliers
+
+
+After doing the initial graphs, I decided to address the trend breaks in December to make the daily case graphs more informative. I removed several of the dates from December to keep the overall case number increasing by a reasonable amount from day-to-day. Similar to the earlier trend breaks, a lot of these dates would show a large increase in case number for a day or two and then a sharp decrease. Since the cumulative case number preceding the large increase and the cumulative case number after the sharp decrease often made sense being consecutive in the data set (in terms of the difference between the 2 numbers), no additional adjustments were made and the daily case counts were recalculated as if those 2 numbers were consecutive days.
+
+Some of the trend breaks present were large increases not followed by subsequent decreases. I assumed that these days were data dumps and included them in the initial data frame used to calculate the daily rates, but dropped that day afterwards to minimize its impact on the daily case rates graphs. Based on the other daily increases in the data set, I considered a daily increase of larger than 1000 cases to be an abnormally high number since the daily rate varied between 200 and 800 usually. 
+
+The first date (6/15) was also removed post-daily number calculations since there was no preceding date to calculate the change in numbers for this date.
 ```{r redoing daily numbers, cumulative case counts & case rates for alternative dataset}
+# reselecting only the case counts for each group
 all_short_no_dec <- cobb_all_months_short %>%
   select(1:8)
   
+# removing trend break days
 all_short_no_dec <- all_short_no_dec %>%
   filter(date != '2020-12-03' & date != '2020-12-04' & date != '2020-12-08' & date != '2020-12-20' 
          & date != '2020-12-21' & date != '2020-12-27')
-# get cumulative case counts
+
+# get cumulative case counts for all dates
 all_short_no_dec$all_cases_race <- all_short_no_dec$asian + all_short_no_dec$black_african_american +
   all_short_no_dec$white + all_short_no_dec$other_race
 all_short_no_dec$all_cases_eth <- all_short_no_dec$`hispanic_(all_races)` + all_short_no_dec$`non-hispanic` +
   all_short_no_dec$not_specified
 
+# calculate case rates
 all_short_no_dec$asian_rate <- all_short_no_dec$asian / cobb_asian_pop
 all_short_no_dec$black_rate <- all_short_no_dec$black_african_american / cobb_black_pop
 all_short_no_dec$white_rate <- all_short_no_dec$white / cobb_white_pop
@@ -510,6 +609,7 @@ all_short_no_dec$non_hispanic_rate <- all_short_no_dec$`non-hispanic` / cobb_non
 all_short_no_dec$all_race_rate <- all_short_no_dec$all_cases_race / cobb_pop_all
 all_short_no_dec$all_eth_rate <- all_short_no_dec$all_cases_eth / cobb_pop_all
 
+# calculating daily case counts
 daily_asian <- rep(0, nrow(all_short_no_dec))
 daily_all_race <- rep(0, nrow(all_short_no_dec))
 daily_all_eth <- rep(0, nrow(all_short_no_dec))
@@ -541,12 +641,14 @@ all_short_no_dec$daily_white <- daily_white
 all_short_no_dec$daily_other_race <- daily_other_race
 all_short_no_dec$daily_not_specified <- daily_not_specified
 
+# converting daily case counts to case rates
 all_short_no_dec$daily_asian_rate <- all_short_no_dec$daily_asian / cobb_asian_pop 
 all_short_no_dec$daily_black_rate <- all_short_no_dec$daily_black_aa / cobb_black_pop
 all_short_no_dec$daily_hispanic_rate <- all_short_no_dec$daily_hispanic / cobb_hispanic_pop 
 all_short_no_dec$daily_non_hispanic_rate <- all_short_no_dec$daily_non_hispanic / cobb_non_hispanic_pop
 all_short_no_dec$daily_white_rate <- all_short_no_dec$daily_white / cobb_white_pop
 
+# replacing all NaN case rates w 0
 all_short_no_dec$daily_hispanic_rate[is.nan(all_short_no_dec$daily_hispanic_rate)] <- 0
 all_short_no_dec$daily_non_hispanic_rate[is.nan(all_short_no_dec$daily_non_hispanic_rate)] <- 0
 all_short_no_dec$daily_asian_rate[is.nan(all_short_no_dec$daily_asian_rate)] <- 0
@@ -561,6 +663,7 @@ all_short_no_dec <- all_short_no_dec %>%
   filter(date != '2020-06-15')
 ```
 ```{r redoing combination of data into long form w just rates for alternative dataset}
+# This code chunk contains essentially the same code as before, just on the updated data set
 all_short_rr_no_dec <- all_short_no_dec %>%
   select(c(1, 11, 12, 13, 16))
 all_short_er_no_dec <- all_short_no_dec %>%
@@ -631,7 +734,11 @@ for(d in 1:nrow(all_short_der_no_dec)){
 all_long_der_no_dec$date <- as.Date(all_long_der_no_dec$date)
 all_long_der_no_dec$category <- as.factor(all_long_der_no_dec$category)
 ```
+
+
 # Data Visualization Without December Outliers
+
+Graphs for all 3 seasons showing the same 4 different things as all of the above graphs. Graphs 3 & 4 were used in the presentation
 ```{r all graphs w out december outliers}
 all_long_rr_no_dec %>%
   ggplot(aes(group= category, colour=category, x=date, y=rate)) + geom_line() + labs(x="Date", y="Rate") + theme_light() + scale_colour_discrete(name="Race", labels= c("All Races", "Asian", "Black", "White")) + scale_x_date(date_breaks = "1 month", date_labels = "%b")
@@ -647,7 +754,10 @@ all_long_der_no_dec %>%
   ggplot(aes(group= category, colour=category, x=date, y=rate)) + geom_line() + labs(x = "Date", y="Rate") + theme_light() + scale_colour_discrete(name="Ethnicity", labels=c("Hispanic", "Non-Hispanic")) + scale_x_date(date_breaks = "1 month", date_labels = "%b")+ 
   theme(legend.position = "bottom")
 ```
+
+After looking at the differences on the graphs, I decided to split the new data without the trend breaks in December up by season and find the average daily increase in cases. Due to the large number of dates which were removed, I added a column into each data frame which indicated how many days that date was after the previous date in the data. I then divided the daily case rate by this new column to help adjust for missing days in the data.
 ```{r split into seasonal df}
+# splitting non-trend break data up by seasons
 summer_nd <- all_short_no_dec %>%
   filter(date < '2020-09-01')
 fall_nd <- all_short_no_dec %>%
@@ -664,8 +774,8 @@ fall_nd$num_days <- c(1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1, 4, 1, 1, 1, 1
 winter_nd$num_days <-c(1, 1, 3, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
-```
-```{r reporting average daily changes by race/ethnicity}
+
+# calculating mean number of daily cases for each group, adjusted by number of preceding days
 asian_summer <- mean(summer_nd$daily_asian / summer_nd$num_days)
 asian_fall <- mean(fall_nd$daily_asian / fall_nd$num_days)
 asian_winter <- mean(winter_nd$daily_asian / winter_nd$num_days)
@@ -714,9 +824,21 @@ avg_df <- rbind(all_eth_avg, hispanic_avg, non_hispanic_avg)
 rownames(avg_df) <- row_names
 kable(avg_df,  digits=2, format="markdown", col.names= col_names, align='c')
 ```
+
+
+
+
 # Comparing General Broadstreet Reported Case Data to Reported Equity Data
+
+
+
+To verify the reported total number of cases, I downloaded the general data set from Broadstreet and compared the total cumulative and daily totals for all races and all ethnicities (including the not specified and unknown race categories) to the confirmed positive cases in Cobb County as reported in the general data set. I wanted to check the output from above and see if the general trends matched, especially since the daily numbers Broadstreet data set was checked by QA to reduce trend breaks. I only used the confirmed positive cases and not the probable cases in the comparison, since the Health Equity data was only reported for confirmed cases.
 ```{r calculate % of cases not reported even in other/unknown categories, message=F}
+
+# uploading latest release of Broadstreet daily numbers data set
 cummulative_counts_raw <- read_csv("../Coronavirus by County.csv")
+
+# filtering to only include Cobb County, using FIPS code
 cobb_only <- cummulative_counts_raw %>%
   filter(fips == "05000US13067")
 
@@ -724,9 +846,9 @@ cobb_only <- cummulative_counts_raw %>%
 cobb_cases_deaths <- cobb_only %>%
   select(-c(1:593, 1631:length(cobb_only)))
 
-# only keep confirmed cases
-reported_cases <- data.frame(date = as.Date(character()),
-                        all_cases = integer())
+# only keep confirmed cases from reported numbers
+
+reported_cases <- data.frame(date = as.Date(character()), all_cases = integer()) 
 for(c in 1:ncol(cobb_cases_deaths)){
   col <- colnames(cobb_cases_deaths)[c]
   if(str_detect(col, "tstpos")){
@@ -739,10 +861,12 @@ for(c in 1:ncol(cobb_cases_deaths)){
   }
 }
 
+# adding confrimed positive counts to the seasonal data frames
 cobb_summer <- inner_join(cobb_summer, reported_cases, by = "date")
 cobb_winter <- inner_join(cobb_winter, reported_cases, by = "date")
 cobb_fall <- inner_join(cobb_fall, reported_cases, by = "date")
 
+# calculating the number of non-reported cases
 cobb_summer$non_reported_race <- cobb_summer$reported_cases - cobb_summer$all_cases_race
 cobb_summer$non_reported_eth <- cobb_summer$reported_cases - cobb_summer$all_cases_eth
 cobb_fall$non_reported_race <- cobb_fall$reported_cases - cobb_fall$all_cases_race
@@ -751,6 +875,7 @@ cobb_winter$non_reported_race <- cobb_winter$reported_cases - cobb_winter$all_ca
 cobb_winter$non_reported_eth <- cobb_winter$reported_cases - cobb_winter$all_cases_eth
 ```
 ```{r print mean % of cases as reported by broadstreet that were not recorded by Cobb County}
+# printing mean proportion of cases reported in the general Broadstreet data set that were not included in the      Health Equity Data set, split by season and race v. ethnicity totals   
 mean(cobb_summer$non_reported_race/ cobb_summer$reported_cases)
 mean(cobb_fall$non_reported_race/ cobb_fall$reported_cases)
 mean(cobb_winter$non_reported_race/ cobb_winter$reported_cases)
@@ -759,21 +884,12 @@ mean(cobb_summer$non_reported_eth/ cobb_summer$reported_cases)
 mean(cobb_fall$non_reported_eth/ cobb_fall$reported_cases)
 mean(cobb_winter$non_reported_eth/ cobb_winter$reported_cases)
 ```
+
+Similar to above, I combined the Broadstreet overall confirmed case totals, the total number of cases for all races and the total number of cases for ethnicity into a long form dataset, so that the 3 cumulative counts could be compared easily using ggplot.
 ```{r converting case counts to long form}
+# combined cumulative case count data frame
 all_case_totals <- rbind(cobb_summer, cobb_winter, cobb_fall) %>%
   select(reported_cases, all_cases_race, all_cases_eth, date)
-# add in daily number differences for Broadstreet Overall Data
-reported_cases <- reported_cases %>%
-  filter(date < '2021-03-01')
-
-daily_cases <- rep(0, nrow(reported_cases))
-
-for(d in 2:nrow(reported_cases)){
-  daily_cases[d] <- reported_cases$reported_cases[d] - reported_cases$reported_cases[d-1]
-}
-reported_cases$daily_cases <- daily_cases
-reported_cases <- reported_cases %>%
-  filter(date != '2020-06-15')
 
 all_long_case_counts <- data.frame()
 
@@ -788,7 +904,24 @@ for(d in 1:nrow(all_case_totals)){
 }
 
 all_long_case_counts$category <- as.factor(all_long_case_counts$category)
+
+
+# add in daily number differences for Broadstreet Overall Data
+# using original data set which includes dates that were deleted from the health equity data set
+
+daily_cases <- rep(0, nrow(reported_cases))      
+
+for(d in 2:nrow(reported_cases)){
+  daily_cases[d] <- reported_cases$reported_cases[d] - reported_cases$reported_cases[d-1]
+}
+reported_cases$daily_cases <- daily_cases
+
+# removing 6/15 from daily numbers count
+reported_cases <- reported_cases %>%
+  filter(date != '2020-06-15')
 ```
+
+Graph displaying the 3 different cumulative counts. Included in presentation
 ```{r graph of case totals}
 all_long_case_counts %>%
   ggplot(aes(group= category, colour=category, x=date, y=count)) + geom_line() +
@@ -796,6 +929,8 @@ all_long_case_counts %>%
   scale_colour_discrete(name="Count Type", labels=c("All Reported Cases for Ethnicity", "All Reported Cases for Race", "Daily Confirmed Positive Cases")) + 
   scale_x_date(date_breaks = "1 month", date_labels = "%b")
 ```
+
+Graph showing the daily changes in the Broadstreet overall data.
 ```{r graph of daily changes for Broadstreet data}
 reported_cases %>%
     ggplot(aes(x=date, y=daily_cases)) + geom_line(color="blue") +
@@ -803,14 +938,16 @@ reported_cases %>%
   scale_x_date(date_breaks = "1 month", date_labels = "%b")
 ```
 
+
+
 # Charts for Presentation
-```{r}
+```{r adding additonal population counts for demographics grpah}
 cobb_aian_pop <- 1941 
 cobb_nhpi_pop <- 409 
 cobb_two_plus_pop <- 22988 
 cobb_other_race_pop <- 38088 + cobb_aian_pop + cobb_nhpi_pop 
 ```
-```{r}
+```{r grpah of different races in Cobb County}
 pops <- c(cobb_asian_pop, cobb_black_pop, cobb_white_pop, cobb_two_plus_pop,
            cobb_other_race_pop)
 races <- c("Asian", "Black", "White","2+ races", "Other race")
@@ -822,7 +959,7 @@ race.proportions.df %>%
   scale_fill_brewer(palette="Pastel1") + labs(x=NULL)
 ggsave("Race.png", height=5, width=10)
 ```
-```{r}
+```{r graph of different ethnicities in Cobb County}
 pops <- c(cobb_hispanic_pop, cobb_non_hispanic_pop)
 ethnicity <- c("Hispanic", "Non-Hispanic")
 eth.proportions.df <- data.frame(Ethnicity=as.factor(ethnicity), Proportion=pops/cobb_pop_all)
